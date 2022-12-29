@@ -1,4 +1,6 @@
-use image::{Rgb, GenericImage, GenericImageView, ImageBuffer, open};
+use image::{Rgb, GenericImage, GenericImageView, ImageBuffer, open, DynamicImage};
+use image::io::Reader;
+use std::io::Cursor;
 use std::env;
 use std::fmt::{Display, Formatter, Result};
 use std::time::Instant;
@@ -79,12 +81,13 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
     println!("Indices for starting and ending nodes: {:?}", start_end_indices);
     let TL = 0;
     let TR = maze.width()-1;
-    let BL = (maze.height()-1) * maze.width() - 1;
+    let BL = (maze.height()-1) * maze.width();
     let BR = maze.height() * maze.width() - 1;
     let unacceptable_indices = [TL, TR, BL, BR];
     start_end_indices.iter().for_each(|i| 
                                       if unacceptable_indices.contains(&(*i as u32)) { 
-                                          eprintln!("ERROR: A start or end position is in a corner");
+                                          eprintln!("ERROR: A start or end position is in a corner\n\
+                                                    \tUnacceptable indices: {:?}", unacceptable_indices);
                                           panic!(); 
                                       } 
                                      );
@@ -132,7 +135,6 @@ fn perform_image_check(maze: &ImageBuffer<Rgb<u8>, Vec<u8>>, path_color: &Rgb<u8
 fn main() {
     let argv: Vec<String> = env::args().collect();
     let argc = argv.len();
-
     if argc < 2 {
         eprintln!("Must provide an argument for the file path");
         return;
@@ -140,7 +142,14 @@ fn main() {
 
     let file_name: &String = argv.get(1).unwrap();
     println!("The file name passed in {file_name}");
-    let maze: ImageBuffer<Rgb<u8>, Vec<u8>> = open(file_name).unwrap().into_rgb8();
+
+    //Reader for image with no limits on size
+    let mut reader = Reader::open(file_name).unwrap();
+    reader.no_limits();
+    let maze_data: DynamicImage = reader.decode().unwrap();
+
+    //Load image
+    let maze: ImageBuffer<Rgb<u8>, Vec<u8>> = maze_data.into_rgb8();
     println!("File has dimensions {:?}", maze.dimensions());
 
     //Parse image file for terminal nodes nodes and colors 
