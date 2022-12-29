@@ -1,8 +1,6 @@
-use image::{Rgb, GenericImage, GenericImageView, ImageBuffer, open, DynamicImage};
+use image::{Rgb, ImageBuffer, DynamicImage};
 use image::io::Reader;
-use std::io::Cursor;
 use std::env;
-use std::fmt::{Display, Formatter, Result};
 use std::time::Instant;
 use std::vec::Vec;
 use sqrt;
