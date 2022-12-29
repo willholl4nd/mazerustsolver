@@ -18,7 +18,7 @@ use sqrt;
  * ((start x dimensions, start y dimensions), (end x dimensions, end y dimensions),
  * path color, background color)
  */
-fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16), Rgb<u8>, Rgb<u8>) {
+fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u32,u32), (u32,u32), Rgb<u8>, Rgb<u8>) {
     let north: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index < maze.width() as usize).collect();
     let north_count = north.len();
 
@@ -95,14 +95,10 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
     //All checks have been made and now we can continue to return locations for 
     //start and end nodes
     let first_index = start_end_indices.get(0).unwrap();
-    let (mut first_dim_x, mut first_dim_y): (usize, usize) = 
-                                             (first_index / maze.width() as usize,
-                                             first_index - (first_index / maze.width() as usize) * maze.height() as usize);
+    let (mut first_dim_x, mut first_dim_y): (u32, u32) = one_to_two_D(*first_index, maze.width(), maze.height());
     println!("First node is at x: {}, y: {}", first_dim_x, first_dim_y);
     let second_index = start_end_indices.get(1).unwrap();
-    let (mut second_dim_x, mut second_dim_y): (usize, usize) = 
-                                               (second_index / maze.width() as usize,
-                                               second_index - (second_index / maze.width() as usize) * maze.height() as usize);
+    let (mut second_dim_x, mut second_dim_y): (u32, u32) = one_to_two_D(*second_index, maze.width(), maze.height());
 
     println!("Second node is at x: {}, y: {}", second_dim_x, second_dim_y);
     let first_distance = sqrt::sqrt((first_dim_x * first_dim_x + first_dim_y * first_dim_y) as f64);
@@ -114,7 +110,7 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
         ((first_dim_x, first_dim_y), (second_dim_x, second_dim_y)) = ((second_dim_x, second_dim_y), (first_dim_x, first_dim_y));
     }
 
-    ((first_dim_x as u16, first_dim_y as u16), (second_dim_x as u16, second_dim_y as u16), path_color.unwrap(), back_color.unwrap())
+    ((first_dim_x as u32, first_dim_y as u32), (second_dim_x as u32, second_dim_y as u32), path_color.unwrap(), back_color.unwrap())
 }
 
 /**
@@ -130,6 +126,29 @@ fn perform_image_check(maze: &ImageBuffer<Rgb<u8>, Vec<u8>>, path_color: &Rgb<u8
         return false;
     }
     true
+}
+
+/**
+ * Convert a one dimensional index to a (row, column) pair 
+ * to address a two dimensional array
+ */
+fn one_to_two_D(index: usize, width: u32, height: u32) -> (u32, u32) {
+    let row: u32 = (index / width as usize) as u32;
+    let col: u32 = (index - (index / width as usize) * height as usize) as u32;
+    println!("{:?}", (row,col));
+    (row, col)
+}
+
+
+
+/**
+ * Convert a two dimensional (row, column) pair to a one 
+ * dimensional index to array a flat array
+ */
+fn two_to_one_D(row: u32, col: u32, width: u32) -> usize {
+    let index: usize = (row * width + col) as usize;
+    println!("{}", index);
+    index
 }
 
 fn main() {
@@ -153,10 +172,11 @@ fn main() {
     println!("File has dimensions {:?}", maze.dimensions());
 
     //Parse image file for terminal nodes nodes and colors 
-    let ((start_x, start_y), (end_x, end_y), path_color, back_color) = start_end_detect(&maze);
+    let ((start_col, start_row), (end_col, end_row), path_color, back_color) = start_end_detect(&maze);
     if !perform_image_check(&maze, &path_color, &back_color) {
         panic!("Image contains more than 2 colors");
     }
 
-    //Parse image for nodes  
+    //Parse image for nodes
+    
 }
