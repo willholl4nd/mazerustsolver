@@ -7,6 +7,69 @@ use std::time::Instant;
 use std::vec::Vec;
 use sqrt;
 
+struct Grid {
+    width: u32, 
+    height: u32,
+    grid: Vec<Option<Node>>
+}
+
+impl Grid {
+    pub fn new(width: u32, height: u32) -> Self {
+        let mut grid = Vec::<Option<Node>>::new();
+        for _ in 1..width*height {
+            grid.push(None);
+        }
+
+        Grid {
+            width, 
+            height,
+            grid 
+        }
+    }
+
+    pub fn get(&self, row: u32, col: u32) -> &Option<Node> {
+        let index: usize = two_to_one_D(row, col, self.width);
+        self.grid.get(index).unwrap()
+    }
+
+    pub fn put(&mut self, node: Option<Node>, row: u32, col: u32) -> Option<Node> {
+        let index: usize = two_to_one_D(row, col, self.width);
+        let existing_node: Option<Node> = self.grid.remove(index);
+        self.grid.insert(index, node);
+        existing_node
+    }
+
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+}
+
+struct Node {
+    n_node: Option<(u32, u32, u32)>,
+    e_node: Option<(u32, u32, u32)>,
+    s_node: Option<(u32, u32, u32)>,
+    w_node: Option<(u32, u32, u32)>,
+    came_from_node: Option<(u32, u32)>,
+    is_start_node: bool,
+    is_end_node: bool,
+    location: (u32, u32),
+}
+
+impl Node {
+    pub fn new(row: u32, col: u32) -> Self {
+        Node {
+            n_node: None,
+            e_node: None,
+            s_node: None,
+            w_node: None,
+            came_from_node: None,
+            is_start_node: false,
+            is_end_node: false,
+            location: (row, col)
+        }
+    }
+}
+
 /**
  * Does a bunch of checks to make sure the image border is correct
  * Checks:
@@ -19,18 +82,18 @@ use sqrt;
  * path color, background color)
  */
 fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u32,u32), (u32,u32), Rgb<u8>, Rgb<u8>) {
-    let north: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index < maze.width() as usize).collect();
+    let north: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, _)| *index < maze.width() as usize).collect();
     let north_count = north.len();
 
-    let south: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index as u32 >= (maze.height()-1) * maze.width()).collect();
+    let south: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, _)| *index as u32 >= (maze.height()-1) * maze.width()).collect();
     let south_count = south.len();
 
-    let mut west: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index % maze.width() as usize == 0).collect();
+    let mut west: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, _)| *index % maze.width() as usize == 0).collect();
     west.remove(0); //Removed TL corner contained in north
     west.remove(west.len()-1); //Removed BL corner contained in south
     let west_count = west.len(); 
 
-    let mut east: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index as u32 % maze.width() == maze.width()-1).collect();
+    let mut east: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, _)| *index as u32 % maze.width() == maze.width()-1).collect();
     east.remove(0); //Removed TR corner contained in north
     east.remove(east.len()-1); //Removed BR corner contained in south
     let east_count = east.len();
@@ -135,7 +198,6 @@ fn perform_image_check(maze: &ImageBuffer<Rgb<u8>, Vec<u8>>, path_color: &Rgb<u8
 fn one_to_two_D(index: usize, width: u32, height: u32) -> (u32, u32) {
     let row: u32 = (index / width as usize) as u32;
     let col: u32 = (index - (index / width as usize) * height as usize) as u32;
-    println!("{:?}", (row,col));
     (row, col)
 }
 
@@ -147,8 +209,76 @@ fn one_to_two_D(index: usize, width: u32, height: u32) -> (u32, u32) {
  */
 fn two_to_one_D(row: u32, col: u32, width: u32) -> usize {
     let index: usize = (row * width + col) as usize;
-    println!("{}", index);
     index
+}
+
+fn find_nodes(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>, path_color: &Rgb<u8>) -> Vec<(u32, u32)> {
+    let mut ret: Vec<(u32, u32)> = Vec::new();
+    let width: u32 = maze.width();
+    let height: u32 = maze.height();
+
+    //Loop over all pixels
+    for row in 0..=height-1 {
+        for col in 0..=width-1 {
+            if is_node(maze, path_color, col, row) {
+                ret.push((row, col));
+            } 
+        }
+    }
+    ret
+}
+
+fn is_node(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>, path_color: &Rgb<u8>, col: u32, row: u32) -> bool {
+    //Check if cords are a path tile
+    if maze.get_pixel(col, row) != path_color {
+        return false;
+    }
+
+    let mut count: u8 = 0;
+    let line_ew: bool;
+    let line_ns: bool;
+    let width = maze.width();
+    let height = maze.height();
+
+    let mut north: Option<&Rgb<u8>> = None;
+    let mut east: Option<&Rgb<u8>> = None;
+    let mut south: Option<&Rgb<u8>> = None;
+    let mut west: Option<&Rgb<u8>> = None;
+
+    let mut nb: bool = false;
+    let mut eb: bool = false;
+    let mut sb: bool = false;
+    let mut wb: bool = false;
+
+    if in_bounds(width, height, col as i64 + 1, row as i64) && maze.get_pixel(col+1, row) == path_color {
+        east = Some(maze.get_pixel(col+1, row));
+        eb = true;
+        count += 1;
+    }
+    if in_bounds(width, height, col as i64 - 1, row as i64) && maze.get_pixel(col-1, row) == path_color {
+        west = Some(maze.get_pixel(col-1, row));
+        wb = true;
+        count += 1;
+    }
+    if in_bounds(width, height, col as i64, row as i64 + 1) && maze.get_pixel(col, row+1) == path_color {
+        south = Some(maze.get_pixel(col, row+1));
+        sb = true;
+        count += 1;
+    }
+    if in_bounds(width, height, col as i64, row as i64 - 1) && maze.get_pixel(col, row-1) == path_color {
+        north = Some(maze.get_pixel(col, row-1));
+        nb = true;
+        count += 1;
+    }
+
+    line_ew = eb && east.unwrap() == path_color && wb && west.unwrap() == path_color;
+    line_ns = nb && north.unwrap() == path_color && sb && south.unwrap() == path_color;
+
+    count == 1 || (count == 2 && !(line_ns ||  line_ew)) || count == 3 || count == 4
+}
+
+fn in_bounds(width: u32, height: u32, col: i64, row: i64) -> bool {
+    col >= 0 && col < width as i64 && row >= 0 && row < height as i64
 }
 
 fn main() {
@@ -177,6 +307,14 @@ fn main() {
         panic!("Image contains more than 2 colors");
     }
 
+    //Convert image into node objects
+    println!("Creating grid object");
+    let mut nodes: Grid = Grid::new(maze.width(), maze.height());
+
+    println!("Finding all nodes in maze");
+    let node_positions = find_nodes(&maze, &path_color);
+
+    todo!("Think of how you could use incremental loading to get around high memory usage");
+
     //Parse image for nodes
-    
 }
