@@ -1,40 +1,82 @@
 use image::{Rgb, ImageBuffer, DynamicImage};
 use image::io::Reader;
 use std::env;
+use std::mem::size_of;
 use std::time::Instant;
 use std::vec::Vec;
+use std::fmt::{Debug, Formatter, Error};
 use sqrt;
+use indicatif::ProgressBar;
 
 struct Grid {
     width: u32, 
     height: u32,
-    grid: Vec<Option<Node>>
+    grid: Vec<Option<Node>>,
+    
+    //(row, col)
+    start: (u32, u32),
+    end: (u32, u32),
 }
 
 impl Grid {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32, start: (u32, u32), end: (u32, u32)) -> Self {
         let mut grid = Vec::<Option<Node>>::new();
-        for _ in 1..width*height {
+        for _ in 0..width*height {
             grid.push(None);
         }
 
         Grid {
             width, 
             height,
-            grid 
+            grid,
+            start,
+            end
         }
     }
 
+    pub fn init(&mut self, node_positions: Vec<(u32, u32)>) {
+        let mut bar = ProgressBar::new(node_positions.len() as u64);
+        node_positions.iter().for_each(|(row,col)| {
+            bar.inc(1);
+            self.put(Some(Node::new(*row, *col)), *row, *col);
+        });
+        bar.finish();
+    }
+
     pub fn get(&self, row: u32, col: u32) -> &Option<Node> {
-        let index: usize = two_to_one_D(row, col, self.width);
-        self.grid.get(index).unwrap()
+        let index: usize = two_to_one_D(row, col, self.width, self.height);
+        let node = self.grid.get(index);
+        return match node {
+            None => {
+                &None
+            },
+            Some(&_) => {
+                node.unwrap()
+            }
+        };
     }
 
     pub fn put(&mut self, node: Option<Node>, row: u32, col: u32) -> Option<Node> {
-        let index: usize = two_to_one_D(row, col, self.width);
-        let existing_node: Option<Node> = self.grid.remove(index);
-        self.grid.insert(index, node);
-        existing_node
+        let index: usize = two_to_one_D(row, col, self.width, self.height);
+        std::mem::replace(&mut self.grid[index], node)
+    }
+
+    pub fn connect_horiz(&mut self) {
+
+    }
+
+    pub fn connect_vertical(&mut self) {
+
+    }
+
+    pub fn print(&self) {
+        println!("Length of grid: {}", self.grid.len());
+        for row in 0..self.height {
+            for col in 0..=self.width-1 {
+                print!("{:?} ", self.get(row, col));
+            }
+            println!("");
+        }
     }
 
     pub fn dimensions(&self) -> (u32, u32) {
@@ -43,14 +85,23 @@ impl Grid {
 }
 
 struct Node {
-    n_node: Option<(u32, u32, u32)>,
-    e_node: Option<(u32, u32, u32)>,
-    s_node: Option<(u32, u32, u32)>,
-    w_node: Option<(u32, u32, u32)>,
-    came_from_node: Option<(u32, u32)>,
+    //(row, col)
+    n_node: Option<Box<(u32, u32)>>,
+    e_node: Option<Box<(u32, u32)>>,
+    s_node: Option<Box<(u32, u32)>>,
+    w_node: Option<Box<(u32, u32)>>,
+    came_from_node: Option<Box<(u32, u32)>>,
+
     is_start_node: bool,
     is_end_node: bool,
     location: (u32, u32),
+}
+
+impl Debug for Node {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> { 
+        f.debug_struct("Node").field("row", &self.location.0)
+            .field("col", &self.location.1).finish()
+    }
 }
 
 impl Node {
@@ -195,7 +246,10 @@ fn perform_image_check(maze: &ImageBuffer<Rgb<u8>, Vec<u8>>, path_color: &Rgb<u8
  */
 fn one_to_two_D(index: usize, width: u32, height: u32) -> (u32, u32) {
     let row: u32 = (index / width as usize) as u32;
-    let col: u32 = (index - (index / width as usize) * height as usize) as u32;
+    let col: u32 = (index - row as usize * height as usize) as u32;
+    if row >= height || col >= width {
+        panic!("ERROR: index argument is outside of dimensions");
+    }
     (row, col)
 }
 
@@ -205,8 +259,11 @@ fn one_to_two_D(index: usize, width: u32, height: u32) -> (u32, u32) {
  * Convert a two dimensional (row, column) pair to a one 
  * dimensional index to array a flat array
  */
-fn two_to_one_D(row: u32, col: u32, width: u32) -> usize {
+fn two_to_one_D(row: u32, col: u32, width: u32, height: u32) -> usize {
     let index: usize = (row * width + col) as usize;
+    if index >= (width * height) as usize {
+        panic!("ERROR: row and col arguments are outside of dimensions");
+    }
     index
 }
 
@@ -214,6 +271,7 @@ fn find_nodes(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>, path_color: &Rgb<u8>) -> Vec<
     let mut ret: Vec<(u32, u32)> = Vec::new();
     let width: u32 = maze.width();
     let height: u32 = maze.height();
+    let mut bar = ProgressBar::new((height*width) as u64);
 
     //Loop over all pixels
     for row in 0..=height-1 {
@@ -222,7 +280,9 @@ fn find_nodes(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>, path_color: &Rgb<u8>) -> Vec<
                 ret.push((row, col));
             } 
         }
+        bar.inc(width as u64);
     }
+    bar.finish();
     ret
 }
 
@@ -307,10 +367,13 @@ fn main() {
 
     //Convert image into node objects
     println!("Creating grid object");
-    let mut nodes: Grid = Grid::new(maze.width(), maze.height());
+    let mut nodes: Grid = Grid::new(maze.width(), maze.height(), (start_row, start_col), (end_row, end_col));
 
     println!("Finding all nodes in maze");
     let node_positions = find_nodes(&maze, &path_color);
+    nodes.init(node_positions);
+    nodes.connect_horiz();
+    nodes.connect_vertical();
 
     todo!("Think of how you could use incremental loading to get around high memory usage");
 
