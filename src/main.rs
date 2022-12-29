@@ -5,6 +5,17 @@ use std::time::Instant;
 use std::vec::Vec;
 use sqrt;
 
+/**
+ * Does a bunch of checks to make sure the image border is correct
+ * Checks:
+ * 1. Only two colors exist in border
+ * 2. One of the two colors appears only twice in border (start, end)
+ * 3. Color appearing twice doesn't appear in corner of maze image
+ *
+ * Returns:
+ * ((start x dimensions, start y dimensions), (end x dimensions, end y dimensions),
+ * path color, background color)
+ */
 fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16), Rgb<u8>, Rgb<u8>) {
     let north: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index < maze.width() as usize).collect();
     let north_count = north.len();
@@ -12,10 +23,14 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
     let south: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index as u32 >= (maze.height()-1) * maze.width()).collect();
     let south_count = south.len();
 
-    let west: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index % maze.width() as usize == 0).collect();
-    let west_count = west.len();
+    let mut west: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index % maze.width() as usize == 0).collect();
+    west.remove(0); //Removed TL corner contained in north
+    west.remove(west.len()-1); //Removed BL corner contained in south
+    let west_count = west.len(); 
 
-    let east: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index as u32 % maze.width() == maze.width()-1).collect();
+    let mut east: Vec<(usize, &Rgb<u8>)> = maze.pixels().enumerate().filter(|(index, pixel)| *index as u32 % maze.width() == maze.width()-1).collect();
+    east.remove(0); //Removed TR corner contained in north
+    east.remove(east.len()-1); //Removed BR corner contained in south
     let east_count = east.len();
 
     let mut border: Vec<(usize, &Rgb<u8>)> = Vec::new();
@@ -31,7 +46,7 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
 
     //Check that only two colors exist in the border
     if set.len() != 2 {
-        panic!("Too many colors used to make maze. Required that you use only 2 colors");
+        panic!("ERROR: Too many colors used to make maze. Required that you use only 2 colors");
     }
 
     let first_color_nodes: Vec<_> = border.iter().filter(|(_,pixel)| pixel == set.get(0).unwrap()).collect();
@@ -42,9 +57,9 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
     println!("Second color {:?} has appeared {} times in the border", set.get(1).unwrap(), second_color_count);
 
     //Check for which color will be the path and which will be the background
-    let mut path_color: Option<Rgb<u8>> = None;
-    let mut back_color: Option<Rgb<u8>> = None;
-    let mut start_end_indices: Vec<usize> = Vec::new();
+    let path_color: Option<Rgb<u8>>;
+    let back_color: Option<Rgb<u8>>;
+    let start_end_indices: Vec<usize>;
     if first_color_count == 2 {
         path_color = Some(*set.get(0).unwrap().clone());
         back_color = Some(*set.get(1).unwrap().clone());
@@ -54,7 +69,9 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
         path_color = Some(*set.get(1).unwrap().clone());
         start_end_indices = second_color_nodes.iter().map(|(i, _)| *i).collect();
     } else {
-        todo!("Neither of the colors had a count of two");
+        eprintln!("ERROR: Neither of the colors had a count of two: \n\t{:?}",
+                  if first_color_count < second_color_count { first_color_nodes } else { second_color_nodes });
+        panic!();
     }
     println!("Path color: {:?}, background color: {:?}", path_color, back_color);
 
@@ -67,7 +84,8 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
     let unacceptable_indices = [TL, TR, BL, BR];
     start_end_indices.iter().for_each(|i| 
                                       if unacceptable_indices.contains(&(*i as u32)) { 
-                                          panic!("A start or end position is in a corner"); 
+                                          eprintln!("ERROR: A start or end position is in a corner");
+                                          panic!(); 
                                       } 
                                      );
 
@@ -75,19 +93,19 @@ fn start_end_detect(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>) -> ((u16,u16), (u16,u16
     //start and end nodes
     let first_index = start_end_indices.get(0).unwrap();
     let (mut first_dim_x, mut first_dim_y): (usize, usize) = 
-                                     (first_index / maze.width() as usize,
-                                     first_index - (first_index / maze.width() as usize) * maze.height() as usize);
+                                             (first_index / maze.width() as usize,
+                                             first_index - (first_index / maze.width() as usize) * maze.height() as usize);
     println!("First node is at x: {}, y: {}", first_dim_x, first_dim_y);
     let second_index = start_end_indices.get(1).unwrap();
     let (mut second_dim_x, mut second_dim_y): (usize, usize) = 
-                                       (second_index / maze.width() as usize,
-                                     second_index - (second_index / maze.width() as usize) * maze.height() as usize);
+                                               (second_index / maze.width() as usize,
+                                               second_index - (second_index / maze.width() as usize) * maze.height() as usize);
 
     println!("Second node is at x: {}, y: {}", second_dim_x, second_dim_y);
     let first_distance = sqrt::sqrt((first_dim_x * first_dim_x + first_dim_y * first_dim_y) as f64);
     let second_distance = sqrt::sqrt((second_dim_x * second_dim_x + second_dim_y * second_dim_y) as f64);
     println!("First node is {} units from origin\nSecond node is {} units from origin", first_distance, second_distance);
-    
+
     //Node closer to the origin is the starting node 
     if first_distance > second_distance {
         ((first_dim_x, first_dim_y), (second_dim_x, second_dim_y)) = ((second_dim_x, second_dim_y), (first_dim_x, first_dim_y));
@@ -130,6 +148,6 @@ fn main() {
     if !perform_image_check(&maze, &path_color, &back_color) {
         panic!("Image contains more than 2 colors");
     }
-    
+
     //Parse image for nodes  
 }
