@@ -56,6 +56,18 @@ impl Grid {
         };
     }
 
+    pub fn get_mut(&mut self, row: u32, col: u32) -> &Option<Node> {
+        let index: usize = two_to_one_D(row, col, self.width, self.height);
+        let node = self.grid.get_mut(index);
+        return match node {
+            None => {
+                &None
+            },
+            Some(&mut _) => {
+                node.unwrap()
+            }
+        };
+    }
     pub fn put(&mut self, node: Option<Node>, row: u32, col: u32) -> Option<Node> {
         let index: usize = two_to_one_D(row, col, self.width, self.height);
         std::mem::replace(&mut self.grid[index], node)
@@ -63,6 +75,23 @@ impl Grid {
 
     pub fn connect_horiz(&mut self) {
 
+        let mut currentNode: &Option<Node>;
+        let mut has_east: &Option<Box<(u32, u32)>>;
+
+        //Loop through entire maze
+        for row in 0..self.height-1 {
+            for col in 0..self.width-1 {
+                let mut node: &Option<Node> = self.get_mut(row, col);
+                match node {
+                    &None => { },
+                    Some(n) => {
+                        has_east = &n.e_node;
+
+                        //if has_east == &None && 
+                    }
+                }
+            }
+        }
     }
 
     pub fn connect_vertical(&mut self) {

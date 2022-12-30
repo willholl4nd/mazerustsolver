@@ -1,0 +1,24 @@
+Current Session
+
+   Window 1
+
+      https://www.youtube.com/watch?v=T6SyM0Kw6GA
+      https://github.com/willholl4nd/rustmazecreator
+      https://github.com/willholl4nd/MazeCreator/blob/main/ImageMazeGenerator.java
+      https://github.com/willholl4nd/mazerustsolver/blob/dev/10.png
+      https://github.com/willholl4nd/MazeSolver/blob/e80d66d7e9e12d7860fc55771c925aba570fe136/Main.java#L288
+      https://doc.rust-lang.org/std/vec/struct.Vec.html
+      https://docs.rs/image/latest/image/struct.ImageBuffer.html#method.dimensions
+      https://docs.rs/image/latest/image/buffer/struct.Pixels.html
+      https://docs.rs/image/latest/image/buffer/struct.EnumeratePixels.html
+      https://stackoverflow.com/questions/60583618/performance-of-rust-vector-vect-versus-array-t-n
+      https://doc.rust-lang.org/std/primitive.array.html
+      https://doc.rust-lang.org/stable/std/env/struct.Args.html
+      https://en.wikipedia.org/wiki/Maze-solving_algorithm
+      https://doc.rust-lang.org/std/mem/fn.size_of.html
+      https://doc.rust-lang.org/std/fmt/trait.Debug.html
+      https://github.com/console-rs/indicatif
+      https://docs.rs/indicatif/latest/indicatif/
+      https://docs.rs/indicatif/latest/indicatif/struct.ProgressBar.html
+      https://stackoverflow.com/questions/57449264/how-to-get-replace-a-value-in-rust-vec
+      https://doc.rust-lang.org/std/vec/struct.Vec.html#method.splice

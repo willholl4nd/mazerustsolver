@@ -1,0 +1,10 @@
+Length of grid: 81
+None None None None None None None None None 
+Some(Node { row: 1, col: 0 }) None None Some(Node { row: 1, col: 3 }) None Some(Node { row: 1, col: 5 }) None Some(Node { row: 1, col: 7 }) None 
+None None None None None None None None None 
+None Some(Node { row: 3, col: 1 }) None None None Some(Node { row: 3, col: 5 }) None Some(Node { row: 3, col: 7 }) None 
+None None None None None None None None None 
+None None None Some(Node { row: 5, col: 3 }) None None None Some(Node { row: 5, col: 7 }) None 
+None None None None None None None None None 
+None Some(Node { row: 7, col: 1 }) None None None None None Some(Node { row: 7, col: 7 }) Some(Node { row: 7, col: 8 }) 
+None None None None None None None None None 
