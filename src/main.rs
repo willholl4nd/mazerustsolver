@@ -75,13 +75,13 @@ impl Grid {
 
     pub fn connect_horiz(&mut self) {
 
-        let mut currentNode: &Option<Node>;
+        let mut currentNode: &Option<Node>; //The current node we are considering
         let mut has_east: &Option<Box<(u32, u32)>>;
 
         //Loop through entire maze
         for row in 0..self.height-1 {
             for col in 0..self.width-1 {
-                let mut node: &Option<Node> = self.get_mut(row, col);
+                let mut node: &Option<Node> = self.get_mut(row, col); //The comparison node
                 match node {
                     &None => { },
                     Some(n) => {
@@ -101,7 +101,7 @@ impl Grid {
     pub fn print(&self) {
         println!("Length of grid: {}", self.grid.len());
         for row in 0..self.height {
-            for col in 0..=self.width-1 {
+            for col in 0..self.width {
                 print!("{:?} ", self.get(row, col));
             }
             println!("");
@@ -303,8 +303,8 @@ fn find_nodes(maze: &ImageBuffer<Rgb<u8>,Vec<u8>>, path_color: &Rgb<u8>) -> Vec<
     let mut bar = ProgressBar::new((height*width) as u64);
 
     //Loop over all pixels
-    for row in 0..=height-1 {
-        for col in 0..=width-1 {
+    for row in 0..height {
+        for col in 0..width {
             if is_node(maze, path_color, col, row) {
                 ret.push((row, col));
             } 
