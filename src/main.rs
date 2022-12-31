@@ -1,7 +1,8 @@
 use image::{Rgb, ImageBuffer, DynamicImage};
 use image::io::Reader;
 use std::env;
-use std::mem::size_of;
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::time::Instant;
 use std::vec::Vec;
 use std::fmt::{Debug, Formatter, Error};
@@ -11,7 +12,7 @@ use indicatif::ProgressBar;
 struct Grid<'a> {
     width: u32, 
     height: u32,
-    grid: Vec<Option<Node<'a>>>,
+    grid: Vec<Rc<RefCell<Option<Node<'a>>>>>,
     
     //(row, col)
     start: (u32, u32),
@@ -20,9 +21,9 @@ struct Grid<'a> {
 
 impl<'a> Grid<'a> {
     pub fn new(width: u32, height: u32, start: (u32, u32), end: (u32, u32)) -> Self {
-        let mut grid = Vec::<Option<Node>>::new();
+        let mut grid = Vec::<Rc<RefCell<Option<Node>>>>::new();
         for _ in 0..width*height {
-            grid.push(None);
+            grid.push(Rc::new(RefCell::new(None)));
         }
 
         Grid {
@@ -38,37 +39,38 @@ impl<'a> Grid<'a> {
         let mut bar = ProgressBar::new(node_positions.len() as u64);
         node_positions.iter().for_each(|(row,col)| {
             bar.inc(1);
-            self.put(Some(Node::new(*row, *col)), *row, *col);
+            self.put(Rc::new(RefCell::new(Some(Node::new(*row, *col)))), *row, *col);
         });
         bar.finish();
     }
 
-    pub fn get(&self, row: u32, col: u32) -> &Option<Node> {
+    pub fn get(&self, row: u32, col: u32) -> Option<Rc<RefCell<Option<Node>>>> {
         let index: usize = two_to_one_D(row, col, self.width, self.height);
         let node = self.grid.get(index);
         return match node {
             None => {
-                &None
+                None
             },
             Some(&_) => {
-                node.unwrap()
+                Some(node.unwrap().clone())
             }
         };
     }
 
-    pub fn get_mut(&mut self, row: u32, col: u32) -> &Option<Node> {
-        let index: usize = two_to_one_D(row, col, self.width, self.height);
-        let node = self.grid.get_mut(index);
-        return match node {
-            None => {
-                &None
-            },
-            Some(&mut _) => {
-                node.unwrap()
-            }
-        };
-    }
-    pub fn put(&mut self, node: Option<Node<'a>>, row: u32, col: u32) -> Option<Node> {
+    //pub fn get_mut(&mut self, row: u32, col: u32) -> &Option<Node> {
+    //    let index: usize = two_to_one_D(row, col, self.width, self.height);
+    //    let node = self.grid.get_mut(index);
+    //    return match node {
+    //        None => {
+    //            &None
+    //        },
+    //        Some(&mut _) => {
+    //            node.unwrap()
+    //        }
+    //    };
+    //}
+
+    pub fn put(&mut self, node: Rc<RefCell<Option<Node<'a>>>>, row: u32, col: u32) -> Rc<RefCell<Option<Node>>> {
         let index: usize = two_to_one_D(row, col, self.width, self.height);
         std::mem::replace(&mut self.grid[index], node)
     }
@@ -76,23 +78,7 @@ impl<'a> Grid<'a> {
     pub fn connect_horiz(&mut self) {
         //Loop through entire maze
         for row in 0..self.height-1 {
-
-            let mut nodes: Vec<&Box<(u32, u32)>> = Vec::new();
             
-            //Find nodes that are not None
-            for col in 0..self.width-1 {
-                let node: &Option<Node> = self.get(row, col);
-                match node {
-                    &None => {},
-                    Some(n) => {nodes.push(&n.location);}
-                }
-            }
-
-            //Loop through found nodes and link them
-            let currentNode: &Box<(u32, u32)> = nodes.pop().unwrap();
-            for node in nodes {
-                self.get_mut(currentNode.0, currentNode.1);
-            }
         }
     }
 
@@ -115,17 +101,18 @@ impl<'a> Grid<'a> {
     }
 }
 
+//#[derive(Debug)] //Take out later
 struct Node<'a> {
     //(row, col)
-    n_node: Option<&'a Box<(u32, u32)>>,
-    e_node: Option<&'a Box<(u32, u32)>>,
-    s_node: Option<&'a Box<(u32, u32)>>,
-    w_node: Option<&'a Box<(u32, u32)>>,
-    came_from_node: Option<&'a Box<(u32, u32)>>,
+    n_node: Option<&'a (u32, u32)>,
+    e_node: Option<&'a (u32, u32)>,
+    s_node: Option<&'a (u32, u32)>,
+    w_node: Option<&'a (u32, u32)>,
+    came_from_node: Option<&'a (u32, u32)>,
 
     is_start_node: bool,
     is_end_node: bool,
-    location: Box<(u32, u32)>,
+    location: (u32, u32),
 }
 
 impl<'a> Debug for Node<'a> {
@@ -145,7 +132,7 @@ impl<'a> Node<'a> {
             came_from_node: None,
             is_start_node: false,
             is_end_node: false,
-            location: Box::new((row, col)),
+            location: (row, col),
         }
     }
 }
