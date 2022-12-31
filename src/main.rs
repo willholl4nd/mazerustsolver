@@ -8,17 +8,17 @@ use std::fmt::{Debug, Formatter, Error};
 use sqrt;
 use indicatif::ProgressBar;
 
-struct Grid {
+struct Grid<'a> {
     width: u32, 
     height: u32,
-    grid: Vec<Option<Node>>,
+    grid: Vec<Option<Node<'a>>>,
     
     //(row, col)
     start: (u32, u32),
     end: (u32, u32),
 }
 
-impl Grid {
+impl<'a> Grid<'a> {
     pub fn new(width: u32, height: u32, start: (u32, u32), end: (u32, u32)) -> Self {
         let mut grid = Vec::<Option<Node>>::new();
         for _ in 0..width*height {
@@ -68,28 +68,30 @@ impl Grid {
             }
         };
     }
-    pub fn put(&mut self, node: Option<Node>, row: u32, col: u32) -> Option<Node> {
+    pub fn put(&mut self, node: Option<Node<'a>>, row: u32, col: u32) -> Option<Node> {
         let index: usize = two_to_one_D(row, col, self.width, self.height);
         std::mem::replace(&mut self.grid[index], node)
     }
 
     pub fn connect_horiz(&mut self) {
-
-        let mut currentNode: &Option<Node>; //The current node we are considering
-        let mut has_east: &Option<Box<(u32, u32)>>;
-
         //Loop through entire maze
         for row in 0..self.height-1 {
-            for col in 0..self.width-1 {
-                let mut node: &Option<Node> = self.get_mut(row, col); //The comparison node
-                match node {
-                    &None => { },
-                    Some(n) => {
-                        has_east = &n.e_node;
 
-                        //if has_east == &None && 
-                    }
+            let mut nodes: Vec<&Box<(u32, u32)>> = Vec::new();
+            
+            //Find nodes that are not None
+            for col in 0..self.width-1 {
+                let node: &Option<Node> = self.get(row, col);
+                match node {
+                    &None => {},
+                    Some(n) => {nodes.push(&n.location);}
                 }
+            }
+
+            //Loop through found nodes and link them
+            let currentNode: &Box<(u32, u32)> = nodes.pop().unwrap();
+            for node in nodes {
+                self.get_mut(currentNode.0, currentNode.1);
             }
         }
     }
@@ -113,27 +115,27 @@ impl Grid {
     }
 }
 
-struct Node {
+struct Node<'a> {
     //(row, col)
-    n_node: Option<Box<(u32, u32)>>,
-    e_node: Option<Box<(u32, u32)>>,
-    s_node: Option<Box<(u32, u32)>>,
-    w_node: Option<Box<(u32, u32)>>,
-    came_from_node: Option<Box<(u32, u32)>>,
+    n_node: Option<&'a Box<(u32, u32)>>,
+    e_node: Option<&'a Box<(u32, u32)>>,
+    s_node: Option<&'a Box<(u32, u32)>>,
+    w_node: Option<&'a Box<(u32, u32)>>,
+    came_from_node: Option<&'a Box<(u32, u32)>>,
 
     is_start_node: bool,
     is_end_node: bool,
-    location: (u32, u32),
+    location: Box<(u32, u32)>,
 }
 
-impl Debug for Node {
+impl<'a> Debug for Node<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> { 
         f.debug_struct("Node").field("row", &self.location.0)
             .field("col", &self.location.1).finish()
     }
 }
 
-impl Node {
+impl<'a> Node<'a> {
     pub fn new(row: u32, col: u32) -> Self {
         Node {
             n_node: None,
@@ -143,7 +145,7 @@ impl Node {
             came_from_node: None,
             is_start_node: false,
             is_end_node: false,
-            location: (row, col)
+            location: Box::new((row, col)),
         }
     }
 }
