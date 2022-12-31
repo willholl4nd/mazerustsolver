@@ -1,5 +1,6 @@
 use image::{Rgb, ImageBuffer, DynamicImage};
 use image::io::Reader;
+use std::borrow::{BorrowMut, Borrow, Cow};
 use std::env;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -9,21 +10,28 @@ use std::fmt::{Debug, Formatter, Error};
 use sqrt;
 use indicatif::ProgressBar;
 
-struct Grid<'a> {
+/**
+ * Properties:
+ * width - The width of the grid
+ * height - The height of the grid
+ * grid - A vector that has the option of nodes
+ * https://doc.rust-lang.org/book/ch15-05-interior-mutability.html#having-multiple-owners-of-mutable-data-by-combining-rct-and-refcellt
+ */
+struct Grid {
     width: u32, 
     height: u32,
-    grid: Vec<Rc<RefCell<Option<Node<'a>>>>>,
+    grid: Vec<Option<Rc<RefCell<Node>>>>,
     
     //(row, col)
     start: (u32, u32),
     end: (u32, u32),
 }
 
-impl<'a> Grid<'a> {
+impl Grid {
     pub fn new(width: u32, height: u32, start: (u32, u32), end: (u32, u32)) -> Self {
-        let mut grid = Vec::<Rc<RefCell<Option<Node>>>>::new();
+        let mut grid = Vec::<Option<Rc<RefCell<Node>>>>::new();
         for _ in 0..width*height {
-            grid.push(Rc::new(RefCell::new(None)));
+            grid.push(None);
         }
 
         Grid {
@@ -39,12 +47,12 @@ impl<'a> Grid<'a> {
         let mut bar = ProgressBar::new(node_positions.len() as u64);
         node_positions.iter().for_each(|(row,col)| {
             bar.inc(1);
-            self.put(Rc::new(RefCell::new(Some(Node::new(*row, *col)))), *row, *col);
+            self.put(Some(Rc::new(RefCell::new(Node::new(*row, *col)))), *row, *col);
         });
         bar.finish();
     }
 
-    pub fn get(&self, row: u32, col: u32) -> Option<Rc<RefCell<Option<Node>>>> {
+    pub fn get(&self, row: u32, col: u32) -> Option<Rc<RefCell<Node>>> {
         let index: usize = two_to_one_D(row, col, self.width, self.height);
         let node = self.grid.get(index);
         return match node {
@@ -52,33 +60,49 @@ impl<'a> Grid<'a> {
                 None
             },
             Some(&_) => {
-                Some(node.unwrap().clone())
+                node.unwrap().clone()
             }
         };
     }
 
-    //pub fn get_mut(&mut self, row: u32, col: u32) -> &Option<Node> {
-    //    let index: usize = two_to_one_D(row, col, self.width, self.height);
-    //    let node = self.grid.get_mut(index);
-    //    return match node {
-    //        None => {
-    //            &None
-    //        },
-    //        Some(&mut _) => {
-    //            node.unwrap()
-    //        }
-    //    };
-    //}
-
-    pub fn put(&mut self, node: Rc<RefCell<Option<Node<'a>>>>, row: u32, col: u32) -> Rc<RefCell<Option<Node>>> {
+    pub fn put(&mut self, node: Option<Rc<RefCell<Node>>>, row: u32, col: u32) -> Option<Rc<RefCell<Node>>> {
         let index: usize = two_to_one_D(row, col, self.width, self.height);
         std::mem::replace(&mut self.grid[index], node)
+    }
+
+    fn connect_EW(&self, mut east: Rc<RefCell<Node>>, mut west: Rc<RefCell<Node>>) {
+        println!("East: {:?}, West: {:?}", east, west);
+        let east_mut = east.borrow_mut();
+        let west_mut = west.borrow_mut();
+
+        println!("\tWest_mut: {:?}", west_mut);
     }
 
     pub fn connect_horiz(&mut self) {
         //Loop through entire maze
         for row in 0..self.height-1 {
             
+            let mut nodes: Vec<Rc<RefCell<Node>>> = Vec::new();
+            for col in 0..self.width-1 {
+                let node_opt = self.get(row, col);
+                match node_opt {
+                    None => { },
+                    Some(node) => {
+                        nodes.push(node);
+                    }
+                }
+            }
+
+            println!("Nodes found: {:?}", nodes);
+
+            if nodes.len() < 2 {
+                continue;
+            }
+
+            let current_node = nodes.remove(0);
+            for node in nodes {
+                self.connect_EW(Rc::clone(&current_node), Rc::clone(&node));
+            }
         }
     }
 
@@ -90,7 +114,7 @@ impl<'a> Grid<'a> {
         println!("Length of grid: {}", self.grid.len());
         for row in 0..self.height {
             for col in 0..self.width {
-                print!("{:?} ", self.get(row, col));
+                print!("{:?}{} ", self.get(row, col), if col == self.width-1 {""} else {","});
             }
             println!("");
         }
@@ -102,27 +126,29 @@ impl<'a> Grid<'a> {
 }
 
 //#[derive(Debug)] //Take out later
-struct Node<'a> {
+struct Node {
     //(row, col)
-    n_node: Option<&'a (u32, u32)>,
-    e_node: Option<&'a (u32, u32)>,
-    s_node: Option<&'a (u32, u32)>,
-    w_node: Option<&'a (u32, u32)>,
-    came_from_node: Option<&'a (u32, u32)>,
+    //TODO Change referenced tuple to Rc'd tuple and use clone from Rc. Tuple doesn't need to be
+    //mutable
+    n_node: Option<Rc<(u32, u32)>>,
+    e_node: Option<Rc<(u32, u32)>>,
+    s_node: Option<Rc<(u32, u32)>>,
+    w_node: Option<Rc<(u32, u32)>>,
+    came_from_node: Option<Rc<(u32, u32)>>,
 
     is_start_node: bool,
     is_end_node: bool,
-    location: (u32, u32),
+    location: Rc<(u32, u32)>,
 }
 
-impl<'a> Debug for Node<'a> {
+impl Debug for Node {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> { 
         f.debug_struct("Node").field("row", &self.location.0)
             .field("col", &self.location.1).finish()
     }
 }
 
-impl<'a> Node<'a> {
+impl Node {
     pub fn new(row: u32, col: u32) -> Self {
         Node {
             n_node: None,
@@ -132,7 +158,7 @@ impl<'a> Node<'a> {
             came_from_node: None,
             is_start_node: false,
             is_end_node: false,
-            location: (row, col),
+            location: Rc::new((row, col)),
         }
     }
 }
